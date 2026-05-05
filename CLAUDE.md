@@ -7,7 +7,8 @@ Detailed Angular/TypeScript coding standards live in `.claude/CLAUDE.md` and are
 ## Stack
 
 - Angular 21 with SSR (`@angular/ssr`, `outputMode: "server"`, entry `src/server.ts`)
-- Vitest for unit tests (NOT Jest — assertion/mock APIs differ)
+- Vitest for unit / component tests (NOT Jest — assertion/mock APIs differ)
+- Playwright for end-to-end / browser tests (`e2e/` directory)
 - Angular Material 21 + CDK available
 - SCSS for styles (`inlineStyleLanguage: "scss"`)
 - npm 11 (enforced via `packageManager` field in `package.json`)
@@ -17,17 +18,30 @@ Detailed Angular/TypeScript coding standards live in `.claude/CLAUDE.md` and are
 - `npm start` — dev server on http://localhost:4200
 - `npm run build` — production build (client + server bundles into `dist/`)
 - `npm test` — Vitest suite via `ng test`
+- `npm run e2e` — Playwright end-to-end tests
 - `npm run lint` — ESLint over `src/**/*.{ts,html}`
 - `npm run format` / `npm run format:check` — Prettier write / check
 - `npm run serve:ssr:angular-ai-chat` — run the SSR server (requires a prior `npm run build`)
 
-## Verification before reporting a task done
+## Testing strategy: BDD with Vitest + playwright-bdd
 
-Run all of these and fix anything that fails:
+Every feature is validated with BDD tests anchored to the `WHEN/THEN` scenarios in its OpenSpec capability spec (`openspec/changes/<change>/specs/**/*.md`).
+
+- **Vitest** owns unit + component coverage. One `describe` per OpenSpec **Requirement**, one `it('Scenario: <name>', ...)` per **Scenario**. The body is structured `// Given … // When … // Then …`.
+- **playwright-bdd** owns end-to-end coverage. Gherkin lives in `e2e/features/<capability>.feature` (one feature file per OpenSpec capability) and step definitions live in `e2e/steps/`. The `Feature` and `Scenario` names MUST match the OpenSpec scenarios verbatim. `bddgen` (run via `npm run e2e`) compiles the `.feature` files into Playwright specs in `.features-gen/` (gitignored).
+- Step definitions use accessible locators (`getByRole`, `getByLabel`, `getByTestId`) — never CSS selectors tied to Material's internal DOM. Cucumber matches steps by text only, so a phrase used in `Given` must not be redefined as `When`.
+- Every spec scenario MUST be covered by at least one Vitest **or** Playwright test; user-facing flows (theme switching, nav toggle, route navigation, persistence across reload) MUST have a Playwright scenario.
+- `playwright.config.ts` runs `npm start` via `webServer`, with two projects: `chromium` (desktop) and `mobile-chrome` (handset).
+
+## Verification before reporting a feature done
+
+After implementing any feature, run all of these and fix anything that fails:
 
 ```
-npm run lint && npm test && npm run format:check && npm run build
+npm run lint && npm test && npm run e2e && npm run format:check && npm run build
 ```
+
+Do not mark a feature complete unless both `npm test` (Vitest) and `npm run e2e` (Playwright) pass.
 
 ## Pre-commit (lefthook)
 
