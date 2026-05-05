@@ -177,7 +177,7 @@ const querySend = (root: HTMLElement): HTMLButtonElement =>
   root.querySelector<HTMLButtonElement>('button[type="submit"]')!;
 
 const queryMic = (root: HTMLElement): HTMLButtonElement =>
-  root.querySelector<HTMLButtonElement>('button.chat-panel__mic')!;
+  root.querySelector<HTMLButtonElement>('app-voice-input-button button')!;
 
 describe('ChatPanel', () => {
   describe('Advisor can send a message and receive a streamed reply', () => {

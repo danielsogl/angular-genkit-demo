@@ -13,12 +13,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { AdvisorChatService } from '../advisor-chat';
 import { ChatMessage } from '../chat-message/chat-message';
 import { SpeechRecognitionService } from '../voice/speech-recognition.service';
+import { VoiceInputButton } from '../voice/voice-input-button/voice-input-button';
 
 let nextId = 0;
 
 @Component({
   selector: 'app-chat-panel',
-  imports: [MatButtonModule, MatIconModule, ChatMessage],
+  imports: [MatButtonModule, MatIconModule, ChatMessage, VoiceInputButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     role: 'dialog',
@@ -96,17 +97,11 @@ let nextId = 0;
         (input)="onInput($event)"
         (keydown.enter)="onEnter($event)"
       />
-      <button
-        mat-icon-button
-        type="button"
+      <app-voice-input-button
         class="chat-panel__mic"
-        [attr.aria-label]="micLabel()"
-        [attr.aria-pressed]="speech.isRecording()"
-        [disabled]="isMicDisabled()"
-        (click)="onMicToggle()"
-      >
-        <mat-icon>{{ speech.isRecording() ? 'stop_circle' : 'mic' }}</mat-icon>
-      </button>
+        [disabled]="chat.isStreaming()"
+        (transcript)="onTranscript($event)"
+      />
       <button
         mat-flat-button
         type="submit"
@@ -136,17 +131,6 @@ export class ChatPanel {
     () => this.chat.isStreaming() || this.speech.isBusy(),
   );
 
-  protected readonly isMicDisabled = computed(
-    () => !this.speech.isAvailable() || this.chat.isStreaming() || this.speech.isLoading(),
-  );
-
-  protected readonly micLabel = computed(() => {
-    if (!this.speech.isAvailable()) {
-      return 'Spracheingabe wird in diesem Browser nicht unterstützt';
-    }
-    return this.speech.isRecording() ? 'Spracheingabe stoppen' : 'Spracheingabe starten';
-  });
-
   focusComposer(): void {
     this.composerInput()?.nativeElement.focus();
   }
@@ -170,20 +154,13 @@ export class ChatPanel {
     this.submit();
   }
 
-  protected async onMicToggle(): Promise<void> {
-    if (this.speech.isRecording()) {
-      const transcript = await this.speech.stop();
-      if (transcript) {
-        const trimmedDraft = this.chat.draft().trimEnd();
-        const merged = trimmedDraft ? `${trimmedDraft} ${transcript}` : transcript;
-        this.chat.setDraft(merged);
-        if (!this.chat.isStreaming()) {
-          this.chat.send(merged);
-        }
-      }
-      return;
+  protected onTranscript(transcript: string): void {
+    const trimmedDraft = this.chat.draft().trimEnd();
+    const merged = trimmedDraft ? `${trimmedDraft} ${transcript}` : transcript;
+    this.chat.setDraft(merged);
+    if (!this.chat.isStreaming()) {
+      this.chat.send(merged);
     }
-    await this.speech.start();
   }
 
   private submit(): void {

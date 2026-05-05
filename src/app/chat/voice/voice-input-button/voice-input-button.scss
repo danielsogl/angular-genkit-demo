@@ -1,0 +1,7 @@
+:host {
+  display: inline-flex;
+}
+
+button[aria-pressed='true'] {
+  color: var(--mat-sys-error);
+}

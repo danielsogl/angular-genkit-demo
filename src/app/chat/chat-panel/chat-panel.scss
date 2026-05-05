@@ -104,10 +104,6 @@
   opacity: 0.6;
 }
 
-.chat-panel__mic[aria-pressed='true'] {
-  color: var(--mat-sys-error);
-}
-
 .chat-panel__visually-hidden {
   position: absolute;
   width: 1px;
