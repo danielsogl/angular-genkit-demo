@@ -1,0 +1,40 @@
+:host {
+  display: block;
+  height: 100dvh;
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+header {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.container {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+mat-sidenav {
+  width: 240px;
+  background: var(--mat-sys-surface-container);
+  border-inline-end: 1px solid var(--mat-sys-outline-variant);
+  transition: width 200ms ease;
+}
+
+mat-sidenav.rail {
+  width: 72px;
+}
+
+mat-sidenav-content {
+  background: var(--mat-sys-surface);
+}
+
+main {
+  display: block;
+  height: 100%;
+}

@@ -1,0 +1,34 @@
+<div class="shell">
+  <header>
+    <mat-toolbar color="primary">
+      <button
+        mat-icon-button
+        type="button"
+        aria-label="Toggle navigation"
+        [attr.aria-expanded]="toggleExpanded()"
+        (click)="toggle()"
+      >
+        <mat-icon>menu</mat-icon>
+      </button>
+      <app-top-bar />
+    </mat-toolbar>
+  </header>
+
+  <mat-sidenav-container class="container">
+    <mat-sidenav
+      #drawer
+      [class.rail]="rail()"
+      [mode]="mode()"
+      [opened]="opened()"
+      [disableClose]="!isHandset()"
+      (openedChange)="onDrawerOpenedChange($event)"
+    >
+      <app-side-nav [collapsed]="rail()" />
+    </mat-sidenav>
+    <mat-sidenav-content>
+      <main>
+        <router-outlet />
+      </main>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>

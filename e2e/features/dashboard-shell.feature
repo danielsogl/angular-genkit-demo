@@ -5,26 +5,31 @@ Feature: Dashboard shell
   Background:
     Given I open the home page
 
+  @desktop
   Scenario: Routed view is wrapped in the shell
     Then I see the application header
     And I see a primary navigation landmark
     And I see the main content landmark
 
+  @desktop
   Scenario: Toggle from expanded to collapsed
     When I activate the side navigation toggle
     Then the side navigation is in rail mode
     And the toggle reports "aria-expanded" as "false"
 
+  @desktop
   Scenario: Toggle from collapsed to expanded
     Given the side navigation is collapsed
     When I activate the side navigation toggle
     Then the side navigation is in expanded mode
     And the toggle reports "aria-expanded" as "true"
 
+  @desktop
   Scenario: Active item is announced
     When I navigate to the first placeholder route
     Then the active navigation item carries "aria-current" as "page"
 
+  @handset
   Scenario: Drawer is closed by default on handset
     Given I open the home page on a mobile viewport
     Then the side navigation drawer is closed

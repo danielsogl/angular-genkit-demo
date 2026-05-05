@@ -25,11 +25,14 @@ Given('the side navigation is collapsed', async ({ page }) => {
 });
 
 Then('the side navigation is in rail mode', async ({ page }) => {
-  await expect(page.locator('mat-sidenav.rail')).toBeVisible();
+  const toggle = page.getByRole('button', { name: /toggle navigation/i });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('navigation', { name: /primary/i })).toBeVisible();
 });
 
 Then('the side navigation is in expanded mode', async ({ page }) => {
-  await expect(page.locator('mat-sidenav.rail')).toHaveCount(0);
+  const toggle = page.getByRole('button', { name: /toggle navigation/i });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByRole('navigation', { name: /primary/i })).toBeVisible();
 });
 
@@ -60,9 +63,9 @@ Then(
 );
 
 Then('the side navigation drawer is closed', async ({ page }) => {
-  await expect(page.locator('mat-sidenav')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.getByRole('navigation', { name: /primary/i })).toBeHidden();
 });
 
 Then('the side navigation drawer is open', async ({ page }) => {
-  await expect(page.locator('mat-sidenav')).not.toHaveAttribute('aria-hidden', 'true');
+  await expect(page.getByRole('navigation', { name: /primary/i })).toBeVisible();
 });

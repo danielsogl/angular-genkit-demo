@@ -1,15 +1,23 @@
 import { defineConfig, devices } from '@playwright/test';
-import { defineBddConfig, cucumberReporter } from 'playwright-bdd';
+import { cucumberReporter, defineBddProject } from 'playwright-bdd';
 
 const isCi = !!process.env['CI'];
 
-const testDir = defineBddConfig({
+const desktopBdd = defineBddProject({
+  name: 'chromium',
   features: 'e2e/features/**/*.feature',
   steps: 'e2e/steps/**/*.ts',
+  tags: 'not @handset',
+});
+
+const handsetBdd = defineBddProject({
+  name: 'mobile-chrome',
+  features: 'e2e/features/**/*.feature',
+  steps: 'e2e/steps/**/*.ts',
+  tags: 'not @desktop',
 });
 
 export default defineConfig({
-  testDir,
   fullyParallel: true,
   forbidOnly: isCi,
   retries: isCi ? 2 : 0,
@@ -21,11 +29,11 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      ...desktopBdd,
       use: { ...devices['Desktop Chrome'] },
     },
     {
-      name: 'mobile-chrome',
+      ...handsetBdd,
       use: { ...devices['Pixel 7'] },
     },
   ],
