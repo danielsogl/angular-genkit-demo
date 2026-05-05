@@ -13,12 +13,14 @@ import { Router } from '@angular/router';
 import { streamFlow } from 'genkit/beta/client';
 
 import type { ChatStreamEvent } from '../../ai/flows/advisor-chat-schema';
+import { CustomerStore } from '../kundenakte/customer-store';
 import { CurrentUserService } from '../user/current-user.service';
 import type { ChatMessage, ChatTurnRequest } from './chat-types';
 
 @Injectable({ providedIn: 'root' })
 export class AdvisorChatService {
   readonly #currentUser = inject(CurrentUserService);
+  readonly #customerStore = inject(CustomerStore);
   readonly #router = inject(Router);
   readonly #isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
@@ -26,6 +28,12 @@ export class AdvisorChatService {
   readonly #history = signal<readonly ChatMessage[]>([]);
   readonly #submittedTurn = signal<ChatTurnRequest | undefined>(undefined);
   readonly #streaming = signal(false);
+  // Tracks which customer the model has already been briefed on. We send the
+  // full customer record in the system preamble only when the active customer
+  // differs from the last one we shipped — that way switching customers
+  // re-loads context, but consecutive turns on the same customer do not
+  // re-pay the prompt cost.
+  readonly #lastSentCustomerId = signal<string | null>(null);
 
   readonly draft = this.#draft.asReadonly();
   readonly history = this.#history.asReadonly();
@@ -53,6 +61,13 @@ export class AdvisorChatService {
             if (chunk.type === 'navigate' && !dispatched && this.#isBrowser) {
               dispatched = true;
               void this.#router.navigateByUrl('/' + chunk.target);
+              continue;
+            }
+            if (chunk.type === 'customer-loaded') {
+              this.#customerStore.setCurrent(chunk.customer);
+              // Tool-driven loads also count as "agent already has this
+              // customer" — skip the redundant preamble injection next turn.
+              this.#lastSentCustomerId.set(chunk.customer.id);
             }
           }
           await output;
@@ -122,11 +137,17 @@ export class AdvisorChatService {
     this.#draft.set('');
 
     const userName = this.#currentUser.user()?.name ?? null;
+    const currentCustomerId = this.#customerStore.currentCustomerId();
+    const loadCustomer =
+      currentCustomerId !== null && currentCustomerId !== this.#lastSentCustomerId();
     this.#submittedTurn.set({
       userName,
       history: this.#history(),
       message: trimmed,
+      currentCustomerId,
+      loadCustomer,
     });
+    this.#lastSentCustomerId.set(currentCustomerId);
   }
 
   retry(): void {

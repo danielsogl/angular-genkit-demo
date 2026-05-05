@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChatStreamEvent } from '../../ai/flows/advisor-chat-schema';
+import { CustomerStore } from '../kundenakte/customer-store';
 import { CurrentUserService } from '../user/current-user.service';
 import { AdvisorChatService } from './advisor-chat';
 
@@ -279,6 +280,233 @@ describe('AdvisorChatService', () => {
       // Then navigateByUrl is invoked exactly once
       expect(router.navigateByUrl).toHaveBeenCalledTimes(1);
       expect(router.navigateByUrl).toHaveBeenCalledWith('/depot');
+    });
+
+    it('Scenario: customer-loaded event populates the CustomerStore', async () => {
+      // Given the flow emits a customer-loaded event
+      const customer = {
+        id: 'c-007',
+        firstName: 'Eva',
+        lastName: 'Klein',
+        age: 50,
+        email: 'eva@example.de',
+        phone: '+49',
+        address: 'Bonn',
+        riskProfile: 3 as const,
+        depotValue: 99_000,
+        lastContact: '2026-04-01',
+        advisorNotes: 'Test',
+        products: [],
+      };
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([
+          { type: 'customer-loaded', customer },
+          { type: 'text', delta: 'Geöffnet.' },
+        ]),
+        output: Promise.resolve({ reply: 'Geöffnet.' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      const store = TestBed.inject(CustomerStore);
+      // When the advisor sends a message
+      service.send('Öffne Kunde Klein');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      // Then the store contains the customer
+      expect(store.currentCustomer()?.id).toBe('c-007');
+      expect(store.currentCustomerId()).toBe('c-007');
+    });
+
+    it('Scenario: send includes currentCustomerId from the store in the turn payload', async () => {
+      // Given a customer is already loaded in the store
+      const seedCustomer = {
+        id: 'c-002',
+        firstName: 'Bernd',
+        lastName: 'Schmidt',
+        age: 67,
+        email: 'b@example.de',
+        phone: '+49',
+        address: 'München',
+        riskProfile: 2 as const,
+        depotValue: 1,
+        lastContact: '2026-01-01',
+        advisorNotes: '',
+        products: [],
+      };
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([{ type: 'text', delta: 'OK.' }]),
+        output: Promise.resolve({ reply: 'OK.' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      TestBed.inject(CustomerStore).setCurrent(seedCustomer);
+      // When the advisor sends a message
+      service.send('Wie hoch ist sein Depot?');
+      await flush();
+      // Then streamFlow received the currentCustomerId in the input payload
+      expect(streamFlowMock).toHaveBeenCalledTimes(1);
+      const call = streamFlowMock.mock.calls[0][0] as {
+        input: { currentCustomerId: string; loadCustomer: boolean };
+      };
+      expect(call.input.currentCustomerId).toBe('c-002');
+      expect(call.input.loadCustomer).toBe(true);
+    });
+
+    it('Scenario: loadCustomer is false on the second send for the same customer', async () => {
+      // Given the flow always streams a benign reply
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([{ type: 'text', delta: 'OK.' }]),
+        output: Promise.resolve({ reply: 'OK.' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      const seedCustomer = {
+        id: 'c-001',
+        firstName: 'Anna',
+        lastName: 'Müller',
+        age: 43,
+        email: 'a@example.de',
+        phone: '',
+        address: '',
+        riskProfile: 4 as const,
+        depotValue: 0,
+        lastContact: '',
+        advisorNotes: '',
+        products: [],
+      };
+      TestBed.inject(CustomerStore).setCurrent(seedCustomer);
+      // When the advisor sends two messages in a row
+      service.send('Erste Frage');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      service.send('Zweite Frage');
+      await flush();
+      // Then the first turn loads the customer, the second does not
+      expect(streamFlowMock).toHaveBeenCalledTimes(2);
+      const first = streamFlowMock.mock.calls[0][0] as { input: { loadCustomer: boolean } };
+      const second = streamFlowMock.mock.calls[1][0] as { input: { loadCustomer: boolean } };
+      expect(first.input.loadCustomer).toBe(true);
+      expect(second.input.loadCustomer).toBe(false);
+    });
+
+    it('Scenario: Switching the customer re-arms loadCustomer', async () => {
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([{ type: 'text', delta: 'OK.' }]),
+        output: Promise.resolve({ reply: 'OK.' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      const store = TestBed.inject(CustomerStore);
+      const a = {
+        id: 'c-001',
+        firstName: 'Anna',
+        lastName: 'Müller',
+        age: 43,
+        email: '',
+        phone: '',
+        address: '',
+        riskProfile: 4 as const,
+        depotValue: 0,
+        lastContact: '',
+        advisorNotes: '',
+        products: [],
+      };
+      const b = { ...a, id: 'c-002', firstName: 'Bernd', lastName: 'Schmidt' };
+      store.setCurrent(a);
+      service.send('Frage zu Müller');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      // When the advisor picks a different customer and sends again
+      store.setCurrent(b);
+      service.send('Frage zu Schmidt');
+      await flush();
+      // Then the second turn re-loads the new customer's context
+      expect(streamFlowMock).toHaveBeenCalledTimes(2);
+      const second = streamFlowMock.mock.calls[1][0] as {
+        input: { currentCustomerId: string; loadCustomer: boolean };
+      };
+      expect(second.input.currentCustomerId).toBe('c-002');
+      expect(second.input.loadCustomer).toBe(true);
+    });
+
+    it('Scenario: customer-loaded event suppresses redundant loadCustomer next turn', async () => {
+      // Given the first send returns a customer-loaded event for c-001
+      const customer = {
+        id: 'c-001',
+        firstName: 'Anna',
+        lastName: 'Müller',
+        age: 43,
+        email: '',
+        phone: '',
+        address: '',
+        riskProfile: 4 as const,
+        depotValue: 0,
+        lastContact: '',
+        advisorNotes: '',
+        products: [],
+      };
+      let call = 0;
+      streamFlowMock.mockImplementation(() => {
+        call += 1;
+        if (call === 1) {
+          return {
+            stream: fakeStream([
+              { type: 'customer-loaded', customer },
+              { type: 'text', delta: 'Geöffnet.' },
+            ]),
+            output: Promise.resolve({ reply: 'Geöffnet.' }),
+            streamId: Promise.resolve(null),
+          };
+        }
+        return {
+          stream: fakeStream([{ type: 'text', delta: 'OK.' }]),
+          output: Promise.resolve({ reply: 'OK.' }),
+          streamId: Promise.resolve(null),
+        };
+      });
+      const { service } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      // When the advisor asks the agent to open the customer (no UI selection),
+      // and then asks a follow-up
+      service.send('Öffne Kunde Müller');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      service.send('Wie hoch ist das Depot?');
+      await flush();
+      // Then the second turn does NOT re-load — the event already aligned tracker and store
+      const second = streamFlowMock.mock.calls[1][0] as {
+        input: { currentCustomerId: string; loadCustomer: boolean };
+      };
+      expect(second.input.currentCustomerId).toBe('c-001');
+      expect(second.input.loadCustomer).toBe(false);
     });
 
     it('Scenario: Navigation does not interrupt text streaming', async () => {

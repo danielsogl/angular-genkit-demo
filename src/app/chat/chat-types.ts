@@ -9,4 +9,6 @@ export interface ChatTurnRequest {
   readonly userName: string | null;
   readonly history: readonly ChatMessage[];
   readonly message: string;
+  readonly currentCustomerId: string | null;
+  readonly loadCustomer: boolean;
 }

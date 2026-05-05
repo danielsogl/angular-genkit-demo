@@ -12,6 +12,10 @@ interface ModelChunk {
       readonly input?: unknown;
       readonly partial?: boolean;
     };
+    readonly toolResponse?: {
+      readonly name: string;
+      readonly output?: unknown;
+    };
   }[];
 }
 
@@ -72,6 +76,31 @@ describe('advisorChatFlow', () => {
       // Then it parses successfully
       expect(result.success).toBe(true);
     });
+
+    it('Scenario: currentCustomerId is optional and accepts string or null', () => {
+      // Given bodies with and without currentCustomerId
+      const without = ChatTurnRequestSchema.safeParse({
+        userName: null,
+        history: [],
+        message: 'Hi',
+      });
+      const withId = ChatTurnRequestSchema.safeParse({
+        userName: null,
+        history: [],
+        message: 'Hi',
+        currentCustomerId: 'c-001',
+      });
+      const explicitNull = ChatTurnRequestSchema.safeParse({
+        userName: null,
+        history: [],
+        message: 'Hi',
+        currentCustomerId: null,
+      });
+      // Then all three pass
+      expect(without.success).toBe(true);
+      expect(withId.success).toBe(true);
+      expect(explicitNull.success).toBe(true);
+    });
   });
 
   describe('Flow streams text deltas and navigate events as a discriminated union', () => {
@@ -130,6 +159,41 @@ describe('advisorChatFlow', () => {
       );
       expect(navigateEvents).toHaveLength(1);
       expect(navigateEvents[0].target).toBe('depot');
+    });
+
+    it('Scenario: getCustomer tool response yields a customer-loaded event', async () => {
+      // Given the model calls getCustomer and the tool returns a customer payload
+      const customer = {
+        id: 'c-001',
+        firstName: 'Anna',
+        lastName: 'Müller',
+        age: 43,
+        email: 'a@example.de',
+        phone: '+49',
+        address: 'Berlin',
+        riskProfile: 4 as const,
+        depotValue: 100_000,
+        lastContact: '2026-01-01',
+        advisorNotes: 'Notiz',
+        products: [],
+      };
+      const events = await collect([
+        {
+          content: [{ toolRequest: { name: 'getCustomer', input: { id: 'c-001' } } }],
+        },
+        {
+          content: [{ toolResponse: { name: 'getCustomer', output: customer } }],
+        },
+        { content: [{ text: 'Die Kundenakte ist geöffnet.' }] },
+      ]);
+      // Then a single customer-loaded event is emitted with the customer payload
+      const loaded = events.filter(
+        (e): e is Extract<ChatStreamEvent, { type: 'customer-loaded' }> =>
+          e.type === 'customer-loaded',
+      );
+      expect(loaded).toHaveLength(1);
+      expect(loaded[0].customer.id).toBe('c-001');
+      expect(loaded[0].customer.lastName).toBe('Müller');
     });
 
     it('Scenario: Partial tool-request chunks are not forwarded', async () => {

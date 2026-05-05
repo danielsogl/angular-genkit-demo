@@ -1,4 +1,5 @@
 import type { ChatStreamEvent } from './advisor-chat-schema.js';
+import type { GetCustomerOutput } from '../tools/get-customer.tool.schema.js';
 import type { NavigateToolInput } from '../tools/navigate.tool.schema.js';
 
 interface ModelStreamChunk {
@@ -8,6 +9,10 @@ interface ModelStreamChunk {
       readonly name: string;
       readonly input?: unknown;
       readonly partial?: boolean;
+    };
+    readonly toolResponse?: {
+      readonly name: string;
+      readonly output?: unknown;
     };
   }[];
 }
@@ -21,6 +26,7 @@ export async function multiplexAdvisorStream(
   sendChunk: (event: ChatStreamEvent) => void,
 ): Promise<MultiplexResult> {
   let navigateEmitted = false;
+  let lastCustomer: GetCustomerOutput | undefined;
   let assembledText = '';
 
   for await (const chunk of source) {
@@ -41,8 +47,19 @@ export async function multiplexAdvisorStream(
           sendChunk({ type: 'navigate', target: input.target });
           navigateEmitted = true;
         }
+        continue;
+      }
+      if (part.toolResponse && part.toolResponse.name === 'getCustomer') {
+        const output = part.toolResponse.output as GetCustomerOutput | undefined;
+        if (output && typeof output === 'object' && 'id' in output) {
+          lastCustomer = output;
+        }
       }
     }
+  }
+
+  if (lastCustomer) {
+    sendChunk({ type: 'customer-loaded', customer: lastCustomer });
   }
 
   return { assembledText };

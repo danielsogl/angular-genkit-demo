@@ -1,0 +1,93 @@
+<h1>Kundenakte</h1>
+
+<section class="kundenakte__picker" aria-labelledby="picker-heading">
+  <h2 id="picker-heading" class="kundenakte__picker-heading">Kunde auswählen</h2>
+  <ul class="kundenakte__picker-list" role="list">
+    @for (option of customers; track option.id) {
+      <li>
+        <button
+          type="button"
+          class="kundenakte__picker-button"
+          [attr.aria-pressed]="currentId() === option.id"
+          (click)="pick(option)"
+        >
+          <span class="kundenakte__picker-name">{{ option.firstName }} {{ option.lastName }}</span>
+          <span class="kundenakte__picker-meta"
+            >{{ option.age }} Jahre · Risikoklasse {{ option.riskProfile }}</span
+          >
+        </button>
+      </li>
+    }
+  </ul>
+</section>
+
+@if (customer(); as kunde) {
+  <article class="kundenakte" aria-labelledby="customer-name">
+    <header class="kundenakte__header">
+      <h2 id="customer-name">{{ fullName() }}</h2>
+      <p class="kundenakte__id">Kunden-ID: {{ kunde.id }}</p>
+    </header>
+
+    <section class="kundenakte__card" aria-labelledby="card-personal">
+      <h3 id="card-personal">Personendaten</h3>
+      <dl>
+        <div>
+          <dt>Alter</dt>
+          <dd>{{ kunde.age }} Jahre</dd>
+        </div>
+        <div>
+          <dt>E-Mail</dt>
+          <dd>{{ kunde.email }}</dd>
+        </div>
+        <div>
+          <dt>Telefon</dt>
+          <dd>{{ kunde.phone }}</dd>
+        </div>
+        <div>
+          <dt>Adresse</dt>
+          <dd>{{ kunde.address }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="kundenakte__card" aria-labelledby="card-depot">
+      <h3 id="card-depot">Depot</h3>
+      <dl>
+        <div>
+          <dt>Risikoklasse</dt>
+          <dd>{{ kunde.riskProfile }} / 5</dd>
+        </div>
+        <div>
+          <dt>Depot-Volumen</dt>
+          <dd data-testid="depot-value">{{ depotFormatted() }}</dd>
+        </div>
+        <div>
+          <dt>Letzter Kontakt</dt>
+          <dd>{{ kunde.lastContact }}</dd>
+        </div>
+      </dl>
+
+      <h4>Produkte</h4>
+      <ul class="kundenakte__products">
+        @for (product of kunde.products; track product.name) {
+          <li>
+            <span class="kundenakte__product-name">{{ product.name }}</span>
+            <span class="kundenakte__product-meta"
+              >{{ product.category }} · {{ formatProductValue(product.value) }}</span
+            >
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="kundenakte__card" aria-labelledby="card-notes">
+      <h3 id="card-notes">Beraternotizen</h3>
+      <p>{{ kunde.advisorNotes }}</p>
+    </section>
+  </article>
+} @else {
+  <p class="kundenakte__empty">
+    Aktuell ist keine Kundenakte geladen. Wählen Sie oben einen Kunden aus oder bitten Sie den
+    Assistenten — zum Beispiel: „Öffne Kunde Müller" oder „Welche Kunden habe ich?".
+  </p>
+}
