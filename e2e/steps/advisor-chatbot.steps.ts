@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 
 import { Given, Then, When } from './fixtures';
 
-const SHELL_ROUTES = ['/', '/overview', '/library', '/settings'];
+const SHELL_ROUTES = ['/', '/depot', '/kundenakte', '/unterlagen', '/einstellungen'];
 
 const fab = (page: import('@playwright/test').Page) =>
   page.getByRole('button', { name: 'Assistent öffnen' });
@@ -19,12 +19,14 @@ const HAPPY_CHUNKS = ['Gerne. ', 'Ich helfe Ihnen ', 'bei Ihren Fragen.'];
 
 const sseBody = (chunks: readonly string[]): string => {
   // Genkit's streamFlow protocol over /api/chat emits NDJSON-ish frames separated
-  // by `\n\n` with `data: {"message": "<chunk>"}` for streaming chunks and
+  // by `\n\n` with `data: {"message": <chunk>}` for streaming chunks and
   // `data: {"result": <output>}` for the final output. See
-  // genkit/lib/client/client.mjs.
+  // genkit/lib/client/client.mjs. The advisor-chat flow's stream schema is the
+  // discriminated union `{ type: 'text'; delta: string } | { type: 'navigate'; target: string }`,
+  // so each text chunk is wrapped in a `{ type: 'text', delta }` event.
   const parts: string[] = [];
   for (const chunk of chunks) {
-    parts.push(`data: ${JSON.stringify({ message: chunk })}\n\n`);
+    parts.push(`data: ${JSON.stringify({ message: { type: 'text', delta: chunk } })}\n\n`);
   }
   parts.push(`data: ${JSON.stringify({ result: { reply: chunks.join('') } })}\n\n`);
   return parts.join('');

@@ -1,7 +1,9 @@
 import { ApplicationRef, Injectable, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ChatStreamEvent } from '../../ai/flows/advisor-chat-schema';
 import { CurrentUserService } from '../user/current-user.service';
 import { AdvisorChatService } from './advisor-chat';
 
@@ -21,6 +23,10 @@ class FakeCurrentUserService {
   }
 }
 
+class FakeRouter {
+  readonly navigateByUrl = vi.fn().mockResolvedValue(true);
+}
+
 const streamFlowMock = vi.fn();
 
 vi.mock('genkit/beta/client', () => ({
@@ -31,7 +37,10 @@ const flush = async () => {
   await TestBed.inject(ApplicationRef).whenStable();
 };
 
-const fakeStream = async function* (chunks: string[], delayMs = 0): AsyncIterable<string> {
+const fakeStream = async function* (
+  chunks: readonly ChatStreamEvent[],
+  delayMs = 0,
+): AsyncIterable<ChatStreamEvent> {
   for (const chunk of chunks) {
     if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
     yield chunk;
@@ -39,13 +48,17 @@ const fakeStream = async function* (chunks: string[], delayMs = 0): AsyncIterabl
 };
 
 const setup = (initialUser: User | null = null) => {
+  const router = new FakeRouter();
   TestBed.configureTestingModule({
-    providers: [{ provide: CurrentUserService, useClass: FakeCurrentUserService }],
+    providers: [
+      { provide: CurrentUserService, useClass: FakeCurrentUserService },
+      { provide: Router, useValue: router },
+    ],
   });
   const userService = TestBed.inject(CurrentUserService) as unknown as FakeCurrentUserService;
   userService.setUser(initialUser);
   const service = TestBed.inject(AdvisorChatService);
-  return { service, userService };
+  return { service, userService, router };
 };
 
 describe('AdvisorChatService', () => {
@@ -111,9 +124,9 @@ describe('AdvisorChatService', () => {
     it('Scenario: Flow rejection shows German error', async () => {
       // Given the flow stream rejects
       streamFlowMock.mockImplementation(() => {
-        const stream = (async function* (): AsyncGenerator<string, void, void> {
+        // eslint-disable-next-line require-yield
+        const stream = (async function* (): AsyncGenerator<ChatStreamEvent, void, void> {
           throw new Error('boom');
-          yield ''; // unreachable; satisfies require-yield
         })();
         const output = Promise.reject(new Error('boom'));
         output.catch(() => undefined);
@@ -146,9 +159,9 @@ describe('AdvisorChatService', () => {
       streamFlowMock.mockImplementation(() => {
         calls += 1;
         if (calls === 1) {
-          const stream = (async function* (): AsyncGenerator<string, void, void> {
+          // eslint-disable-next-line require-yield
+          const stream = (async function* (): AsyncGenerator<ChatStreamEvent, void, void> {
             throw new Error('boom');
-            yield ''; // unreachable; satisfies require-yield
           })();
           const output = Promise.reject(new Error('boom'));
           output.catch(() => undefined);
@@ -159,7 +172,10 @@ describe('AdvisorChatService', () => {
           };
         }
         return {
-          stream: fakeStream(['Gerne. ', 'Hier ist die Antwort.']),
+          stream: fakeStream([
+            { type: 'text', delta: 'Gerne. ' },
+            { type: 'text', delta: 'Hier ist die Antwort.' },
+          ]),
           output: Promise.resolve({ reply: 'Gerne. Hier ist die Antwort.' }),
           streamId: Promise.resolve(null),
         };
@@ -179,6 +195,121 @@ describe('AdvisorChatService', () => {
       service.retry();
       // Then the resource was reloaded
       expect(reloadSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Client dispatches navigate events to the Angular router', () => {
+    it('Scenario: Text events still grow the assistant message', async () => {
+      // Given the flow streams two text events
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([
+          { type: 'text', delta: 'Ich öffne ' },
+          { type: 'text', delta: 'die Einstellungen.' },
+        ]),
+        output: Promise.resolve({ reply: 'Ich öffne die Einstellungen.' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service, router } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      // When the advisor sends a message
+      service.send('Hallo');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      // Then the assistant message ends with the concatenated deltas
+      const messages = service.displayedMessages();
+      const last = messages[messages.length - 1];
+      expect(last.role).toBe('assistant');
+      expect(last.content).toBe('Ich öffne die Einstellungen.');
+      // And no router navigation happens
+      expect(router.navigateByUrl).not.toHaveBeenCalled();
+    });
+
+    it('Scenario: Navigate event triggers Router.navigateByUrl with the literal route segment', async () => {
+      // Given the flow emits a single navigate event
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([
+          { type: 'navigate', target: 'depot' },
+          { type: 'text', delta: 'Ich öffne das Depot.' },
+        ]),
+        output: Promise.resolve({ reply: 'Ich öffne das Depot.' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service, router } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      // When the advisor sends a message
+      service.send('Zeige Depot');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      // Then router.navigateByUrl is called with '/' + target
+      expect(router.navigateByUrl).toHaveBeenCalledTimes(1);
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/depot');
+    });
+
+    it('Scenario: Duplicate navigate events in one turn are debounced', async () => {
+      // Given two navigate events arrive back-to-back in one turn
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([
+          { type: 'navigate', target: 'depot' },
+          { type: 'navigate', target: 'einstellungen' },
+        ]),
+        output: Promise.resolve({ reply: '' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service, router } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      // When the service consumes the stream
+      service.send('Zeige Depot');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      // Then navigateByUrl is invoked exactly once
+      expect(router.navigateByUrl).toHaveBeenCalledTimes(1);
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/depot');
+    });
+
+    it('Scenario: Navigation does not interrupt text streaming', async () => {
+      // Given a stream interleaves text → navigate → text events
+      streamFlowMock.mockImplementation(() => ({
+        stream: fakeStream([
+          { type: 'text', delta: 'Ich öffne ' },
+          { type: 'navigate', target: 'einstellungen' },
+          { type: 'text', delta: 'die Einstellungen.' },
+        ]),
+        output: Promise.resolve({ reply: 'Ich öffne die Einstellungen.' }),
+        streamId: Promise.resolve(null),
+      }));
+      const { service, router } = setup({
+        id: '1',
+        name: 'Daniel Sogl',
+        email: 'd@example.com',
+        initials: 'DS',
+      });
+      // When the service consumes the stream
+      service.send('Öffne Einstellungen');
+      await flush();
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      // Then both text deltas appear in the assistant message in order
+      const messages = service.displayedMessages();
+      const last = messages[messages.length - 1];
+      expect(last.content).toBe('Ich öffne die Einstellungen.');
+      // And the navigate dispatch happened exactly once
+      expect(router.navigateByUrl).toHaveBeenCalledTimes(1);
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/einstellungen');
     });
   });
 });

@@ -1,13 +1,26 @@
-import { Injectable, computed, inject, resource, signal, type Signal } from '@angular/core';
+import {
+  Injectable,
+  PLATFORM_ID,
+  computed,
+  inject,
+  resource,
+  signal,
+  type Signal,
+} from '@angular/core';
 import type { ResourceStreamItem } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { Router } from '@angular/router';
 import { streamFlow } from 'genkit/beta/client';
 
+import type { ChatStreamEvent } from '../../ai/flows/advisor-chat-schema';
 import { CurrentUserService } from '../user/current-user.service';
 import type { ChatMessage, ChatTurnRequest } from './chat-types';
 
 @Injectable({ providedIn: 'root' })
 export class AdvisorChatService {
   readonly #currentUser = inject(CurrentUserService);
+  readonly #router = inject(Router);
+  readonly #isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   readonly #draft = signal('');
   readonly #history = signal<readonly ChatMessage[]>([]);
@@ -23,15 +36,24 @@ export class AdvisorChatService {
     stream: async ({ params, abortSignal }) => {
       const data = signal<ResourceStreamItem<string>>({ value: '' });
       this.#streaming.set(true);
-      const { stream, output } = streamFlow<{ reply: string }, string>({
+      const { stream, output } = streamFlow<{ reply: string }, ChatStreamEvent>({
         url: '/api/chat',
         input: params,
         abortSignal,
       });
+      let dispatched = false;
       void (async () => {
         try {
           for await (const chunk of stream) {
-            data.update((prev) => ('value' in prev ? { value: prev.value + chunk } : prev));
+            if (chunk.type === 'text') {
+              const delta = chunk.delta;
+              data.update((prev) => ('value' in prev ? { value: prev.value + delta } : prev));
+              continue;
+            }
+            if (chunk.type === 'navigate' && !dispatched && this.#isBrowser) {
+              dispatched = true;
+              void this.#router.navigateByUrl('/' + chunk.target);
+            }
           }
           await output;
         } catch (err) {
