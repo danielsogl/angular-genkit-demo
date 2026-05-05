@@ -12,6 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { AdvisorChatService } from '../advisor-chat';
 import { ChatMessage } from '../chat-message/chat-message';
+import { SpeechRecognitionService } from '../voice/speech-recognition.service';
 
 let nextId = 0;
 
@@ -54,6 +55,31 @@ let nextId = 0;
       <p class="chat-panel__status" aria-label="Antwort wird gestreamt">Antwort wird gestreamt …</p>
     }
 
+    @switch (speech.status()) {
+      @case ('loading-model') {
+        <p class="chat-panel__status" aria-live="polite">
+          Sprachmodell wird geladen … {{ speech.progress() }}%
+        </p>
+      }
+      @case ('recording') {
+        <p class="chat-panel__status chat-panel__status--recording" aria-live="polite">
+          Aufnahme läuft …
+        </p>
+      }
+      @case ('transcribing') {
+        <p class="chat-panel__status" aria-live="polite">Transkription läuft …</p>
+      }
+      @case ('error') {
+        <p
+          class="chat-panel__status chat-panel__status--error"
+          role="alert"
+          data-testid="voice-error"
+        >
+          {{ speech.error() }}
+        </p>
+      }
+    }
+
     <form class="chat-panel__composer" (submit)="onSubmit($event)">
       <label class="chat-panel__visually-hidden" [attr.for]="inputId"
         >Nachricht an den Assistenten</label
@@ -66,15 +92,26 @@ let nextId = 0;
         placeholder="Wie kann ich helfen?"
         [id]="inputId"
         [value]="chat.draft()"
-        [disabled]="chat.isStreaming()"
+        [disabled]="isComposerDisabled()"
         (input)="onInput($event)"
         (keydown.enter)="onEnter($event)"
       />
       <button
+        mat-icon-button
+        type="button"
+        class="chat-panel__mic"
+        [attr.aria-label]="micLabel()"
+        [attr.aria-pressed]="speech.isRecording()"
+        [disabled]="isMicDisabled()"
+        (click)="onMicToggle()"
+      >
+        <mat-icon>{{ speech.isRecording() ? 'stop_circle' : 'mic' }}</mat-icon>
+      </button>
+      <button
         mat-flat-button
         type="submit"
         color="primary"
-        [disabled]="chat.isStreaming() || !canSend()"
+        [disabled]="isComposerDisabled() || !canSend()"
       >
         Senden
       </button>
@@ -84,6 +121,8 @@ let nextId = 0;
 })
 export class ChatPanel {
   protected readonly chat = inject(AdvisorChatService);
+  protected readonly speech = inject(SpeechRecognitionService);
+
   readonly requestClose = output<void>();
 
   protected readonly titleId = `chat-panel-title-${++nextId}`;
@@ -92,6 +131,21 @@ export class ChatPanel {
   readonly composerInput = viewChild<ElementRef<HTMLInputElement>>('composerInput');
 
   protected readonly canSend = computed(() => this.chat.draft().trim().length > 0);
+
+  protected readonly isComposerDisabled = computed(
+    () => this.chat.isStreaming() || this.speech.isBusy(),
+  );
+
+  protected readonly isMicDisabled = computed(
+    () => !this.speech.isAvailable() || this.chat.isStreaming() || this.speech.isLoading(),
+  );
+
+  protected readonly micLabel = computed(() => {
+    if (!this.speech.isAvailable()) {
+      return 'Spracheingabe wird in diesem Browser nicht unterstützt';
+    }
+    return this.speech.isRecording() ? 'Spracheingabe stoppen' : 'Spracheingabe starten';
+  });
 
   focusComposer(): void {
     this.composerInput()?.nativeElement.focus();
@@ -114,6 +168,22 @@ export class ChatPanel {
   protected onSubmit(event: Event): void {
     event.preventDefault();
     this.submit();
+  }
+
+  protected async onMicToggle(): Promise<void> {
+    if (this.speech.isRecording()) {
+      const transcript = await this.speech.stop();
+      if (transcript) {
+        const trimmedDraft = this.chat.draft().trimEnd();
+        const merged = trimmedDraft ? `${trimmedDraft} ${transcript}` : transcript;
+        this.chat.setDraft(merged);
+        if (!this.chat.isStreaming()) {
+          this.chat.send(merged);
+        }
+      }
+      return;
+    }
+    await this.speech.start();
   }
 
   private submit(): void {

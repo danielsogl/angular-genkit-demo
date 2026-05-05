@@ -66,6 +66,15 @@
   color: var(--mat-sys-on-surface-variant);
 }
 
+.chat-panel__status--recording {
+  color: var(--mat-sys-error);
+  font-weight: 500;
+}
+
+.chat-panel__status--error {
+  color: var(--mat-sys-error);
+}
+
 .chat-panel__composer {
   display: flex;
   align-items: center;
@@ -93,6 +102,10 @@
 
 .chat-panel__input:disabled {
   opacity: 0.6;
+}
+
+.chat-panel__mic[aria-pressed='true'] {
+  color: var(--mat-sys-error);
 }
 
 .chat-panel__visually-hidden {
