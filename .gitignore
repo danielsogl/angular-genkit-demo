@@ -29,6 +29,11 @@ yarn-error.log
 !.vscode/mcp.json
 .history/*
 
+# Environment
+.env
+.env.local
+.env.*.local
+
 # Miscellaneous
 /.angular/cache
 .sass-cache/
@@ -50,3 +55,9 @@ Thumbs.db
 /playwright/.cache/
 /playwright/.auth/
 /.features-gen/
+
+# Genkit dev runtime
+/.genkit/
+
+# Playwright MCP scratch
+/.playwright-mcp/

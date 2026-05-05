@@ -8,12 +8,14 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { RouterOutlet } from '@angular/router';
 
+import { ChatLauncherHost } from '../../chat/chat-launcher-host/chat-launcher-host';
 import { SideNav } from '../side-nav/side-nav';
 import { TopBar } from '../top-bar/top-bar';
 
 @Component({
   selector: 'app-dashboard-shell',
   imports: [
+    ChatLauncherHost,
     MatButtonModule,
     MatIconModule,
     MatSidenavModule,

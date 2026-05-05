@@ -1,0 +1,17 @@
+:host {
+  display: contents;
+}
+
+.chat-launcher-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 900;
+}
+
+@media (max-width: 599.98px) {
+  .chat-launcher-fab {
+    right: 16px;
+    bottom: 16px;
+  }
+}

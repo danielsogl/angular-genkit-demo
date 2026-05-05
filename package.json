@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "e2e": "bddgen && playwright test",
+    "genkit:ui": "genkit start -- npx tsx --watch src/ai/index.ts",
     "e2e:ui": "bddgen && playwright test --ui",
     "e2e:report": "playwright show-report",
     "serve:ssr:angular-ai-chat": "node dist/angular-ai-chat/server/server.mjs",

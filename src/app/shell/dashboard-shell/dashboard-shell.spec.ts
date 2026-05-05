@@ -112,4 +112,40 @@ describe('DashboardShell', () => {
       expect(root.querySelectorAll('main').length).toBe(1);
     });
   });
+
+  describe('Shell hosts the advisor chat surface', () => {
+    it('Scenario: Launcher renders inside the shell on every route', () => {
+      // Given the shell is rendered
+      const { fixture } = setup();
+      const root = fixture.nativeElement as HTMLElement;
+      // Then exactly one launcher host exists, projected outside <main>
+      const hosts = root.querySelectorAll('app-chat-launcher-host');
+      expect(hosts.length).toBe(1);
+      const host = hosts[0];
+      expect(host.closest('main')).toBeNull();
+      expect(host.closest('mat-sidenav-container')).toBeNull();
+    });
+
+    it('Scenario: Launcher does not affect existing shell chrome', () => {
+      // Given the shell is rendered
+      const { fixture } = setup();
+      const root = fixture.nativeElement as HTMLElement;
+      // Then the existing top bar, side nav, and main are still present
+      expect(root.querySelector('app-top-bar')).not.toBeNull();
+      expect(root.querySelector('mat-sidenav')).not.toBeNull();
+      expect(root.querySelector('main')).not.toBeNull();
+      expect(root.querySelector('router-outlet')).not.toBeNull();
+    });
+
+    it('Scenario: Routed components do not render their own launcher', () => {
+      // Given the shell is rendered
+      const { fixture } = setup();
+      const root = fixture.nativeElement as HTMLElement;
+      // Then there is a single launcher and it is not nested inside <main>
+      expect(root.querySelectorAll('app-chat-launcher-host').length).toBe(1);
+      const main = root.querySelector('main')!;
+      expect(main.querySelector('app-chat-launcher-host')).toBeNull();
+      expect(main.querySelector('app-chat-launcher')).toBeNull();
+    });
+  });
 });

@@ -5,3 +5,8 @@ node_modules
 package-lock.json
 public
 __screenshots__
+.genkit
+.playwright-mcp
+.features-gen
+playwright-report
+test-results

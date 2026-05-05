@@ -1,0 +1,34 @@
+:host {
+  display: block;
+  max-width: 85%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  font: var(--mat-sys-body-medium);
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface);
+  word-wrap: break-word;
+}
+
+:host([data-role='user']) {
+  align-self: flex-end;
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+:host([data-role='assistant']) {
+  align-self: flex-start;
+}
+
+:host(.is-error) {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chat-message__text,
+.chat-message__error-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
