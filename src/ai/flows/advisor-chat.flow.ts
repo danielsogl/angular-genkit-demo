@@ -33,7 +33,6 @@ export type {
   NavigateEvent,
   CustomerLoadedEvent,
 } from './advisor-chat-schema.js';
-export { multiplexAdvisorStream } from './advisor-chat.multiplex.js';
 
 export const advisorChatFlow = ai.defineFlow(
   {
@@ -61,47 +60,28 @@ export const advisorChatFlow = ai.defineFlow(
         },
       ]);
 
-    // We drive the model non-streaming and synthesize our own discriminated
-    // stream events from the assembled response. Token-level streaming on the
-    // model side is a separate follow-up — keeping this path stable across
-    // the Anthropic → Azure OpenAI provider switch.
-    const response = await ai.generate({
+    const { stream, response } = ai.generateStream({
       system: systemPrompt,
       messages,
       tools: [navigateTool, listCustomersTool, getCustomerTool],
       maxTurns: 3,
     });
 
-    // With maxTurns > 1 tool requests live in intermediate assistant messages,
-    // not in `response.toolRequests` (which only reflects the final message's
-    // parts). Walk the whole conversation. We forward at most one navigate
-    // event per turn (matching the system prompt rule) and at most one
-    // customer-loaded event with the latest successful getCustomer payload
-    // (so the page state reflects the customer the agent ended up referring to).
-    let navigateInput: NavigateToolInput | undefined;
+    // Stream text deltas live, and forward customer-loaded as soon as the
+    // getCustomer tool returns. Navigate input arrives only as fragments in
+    // chunks (the OpenAI SDK emits empty `input` until finish_reason fires);
+    // we read the parsed value from `response.messages` after the stream ends.
     let lastLoadedCustomer: GetCustomerOutput | undefined;
-    for (const msg of response.messages) {
-      if (msg.role === 'model') {
-        for (const part of msg.content) {
-          const tr = (part as { toolRequest?: { name: string; input?: unknown } }).toolRequest;
-          if (!tr) continue;
-          if (tr.name === 'navigate' && !navigateInput) {
-            const input = tr.input as NavigateToolInput | undefined;
-            if (input?.target !== undefined) {
-              navigateInput = input;
-            }
-          }
+    let assembledText = '';
+    for await (const chunk of stream) {
+      for (const part of chunk.content) {
+        if (part.text) {
+          assembledText += part.text;
+          sendChunk({ type: 'text', delta: part.text });
+          continue;
         }
-        continue;
-      }
-      if (msg.role === 'tool') {
-        for (const part of msg.content) {
-          const tres = (
-            part as {
-              toolResponse?: { name: string; output?: unknown };
-            }
-          ).toolResponse;
-          if (tres?.name !== 'getCustomer') continue;
+        const tres = (part as { toolResponse?: { name: string; output?: unknown } }).toolResponse;
+        if (tres?.name === 'getCustomer') {
           const output = tres.output as GetCustomerOutput | undefined;
           if (output && typeof output === 'object' && 'id' in output) {
             lastLoadedCustomer = output;
@@ -110,19 +90,29 @@ export const advisorChatFlow = ai.defineFlow(
       }
     }
 
+    const finalResponse = await response;
+
+    let navigateInput: NavigateToolInput | undefined;
+    for (const msg of finalResponse.messages) {
+      if (msg.role !== 'model') continue;
+      for (const part of msg.content) {
+        const tr = (part as { toolRequest?: { name: string; input?: unknown } }).toolRequest;
+        if (tr?.name === 'navigate' && !navigateInput) {
+          const input = tr.input as NavigateToolInput | undefined;
+          if (input?.target !== undefined) {
+            navigateInput = input;
+          }
+        }
+      }
+    }
+
     if (navigateInput) {
       sendChunk({ type: 'navigate', target: navigateInput.target });
     }
-
     if (lastLoadedCustomer) {
       sendChunk({ type: 'customer-loaded', customer: lastLoadedCustomer });
     }
 
-    const reply = response.text;
-    if (reply) {
-      sendChunk({ type: 'text', delta: reply });
-    }
-
-    return { reply };
+    return { reply: assembledText };
   },
 );

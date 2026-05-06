@@ -7,6 +7,7 @@ import type { ChatStreamEvent } from '../../ai/flows/advisor-chat-schema';
 import { CustomerStore } from '../kundenakte/customer-store';
 import { CurrentUserService } from '../user/current-user.service';
 import { AdvisorChatService } from './advisor-chat';
+import { STREAM_FLOW } from './stream-flow-client';
 
 interface User {
   readonly id: string;
@@ -30,10 +31,6 @@ class FakeRouter {
 
 const streamFlowMock = vi.fn();
 
-vi.mock('genkit/beta/client', () => ({
-  streamFlow: (...args: unknown[]) => streamFlowMock(...args),
-}));
-
 const flush = async () => {
   await TestBed.inject(ApplicationRef).whenStable();
 };
@@ -54,6 +51,7 @@ const setup = (initialUser: User | null = null) => {
     providers: [
       { provide: CurrentUserService, useClass: FakeCurrentUserService },
       { provide: Router, useValue: router },
+      { provide: STREAM_FLOW, useValue: streamFlowMock },
     ],
   });
   const userService = TestBed.inject(CurrentUserService) as unknown as FakeCurrentUserService;

@@ -12,6 +12,8 @@ Detailed Angular/TypeScript coding standards live in `.claude/CLAUDE.md` and are
 - Angular Material 21 + CDK available
 - SCSS for styles (`inlineStyleLanguage: "scss"`)
 - npm 11 (enforced via `packageManager` field in `package.json`)
+- Genkit 1.33 with `genkitx-azure-openai` (Azure OpenAI is the only LLM provider — Anthropic/multiplex code has been removed; do not reintroduce it)
+- In-browser STT via `@huggingface/transformers` (Whisper-small, German, runs in a Web Worker)
 
 ## Commands
 
@@ -47,9 +49,22 @@ Do not mark a feature complete unless both `npm test` (Vitest) and `npm run e2e`
 
 `lefthook` runs on `git commit` and auto-fixes staged files with `eslint --fix` and `prettier --write`, then re-stages them. Do not bypass with `--no-verify`. If a hook fails, fix the underlying issue and create a new commit (do not amend).
 
+## AI flows (Genkit)
+
+- All flows live in `src/ai/flows/<name>.flow.ts` with co-located `<name>.flow.spec.ts` (Vitest). Schemas go in `<name>-schema.ts`, prompt parts in `<name>.preamble.ts` (each with its own spec).
+- Flows are registered via `ai.defineFlow` and exposed through `@genkit-ai/express`. Streaming uses `ai.generateStream` — keep it streaming, don't collapse to `generate`.
+- Tools use `ai.defineTool` with zod input/output schemas. Co-locate tool definitions with the flow that owns them.
+- Genkit dev UI: `npm run genkit:ui` (runs `genkit start -- npx tsx --watch src/ai/index.ts`).
+- Before guessing a Genkit fix, consult the `developing-genkit-js` skill's `common-errors.md`.
+
 ## OpenSpec workflow
 
-OpenSpec is active in `openspec/` (changes, specs, config). For non-trivial changes, propose through OpenSpec before implementing — use the `openspec-propose` / `openspec-apply` / `openspec-archive-change` skills rather than jumping straight to code.
+OpenSpec is active in `openspec/` (changes, specs, config). For non-trivial changes, propose through OpenSpec before implementing — use the `openspec-propose` / `openspec-apply` / `openspec-archive-change` skills rather than jumping straight to code. Do **not** auto-propose: wait for an explicit signal from the user before opening an OpenSpec change.
+
+## Skill loading conventions
+
+- Load `angular-developer` before writing or modifying Angular code.
+- Load `developing-genkit-js` before writing or modifying Genkit flows/tools.
 
 ## MCP servers (`.mcp.json`)
 

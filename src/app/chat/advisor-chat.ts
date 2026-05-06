@@ -10,12 +10,11 @@ import {
 import type { ResourceStreamItem } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
-import { streamFlow } from 'genkit/beta/client';
-
 import type { ChatStreamEvent } from '../../ai/flows/advisor-chat-schema';
 import { CustomerStore } from '../kundenakte/customer-store';
 import { CurrentUserService } from '../user/current-user.service';
 import type { ChatMessage, ChatTurnRequest } from './chat-types';
+import { STREAM_FLOW } from './stream-flow-client';
 
 @Injectable({ providedIn: 'root' })
 export class AdvisorChatService {
@@ -23,6 +22,7 @@ export class AdvisorChatService {
   readonly #customerStore = inject(CustomerStore);
   readonly #router = inject(Router);
   readonly #isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+  readonly #streamFlow = inject(STREAM_FLOW);
 
   readonly #draft = signal('');
   readonly #history = signal<readonly ChatMessage[]>([]);
@@ -44,7 +44,7 @@ export class AdvisorChatService {
     stream: async ({ params, abortSignal }) => {
       const data = signal<ResourceStreamItem<string>>({ value: '' });
       this.#streaming.set(true);
-      const { stream, output } = streamFlow<{ reply: string }, ChatStreamEvent>({
+      const { stream, output } = this.#streamFlow<{ reply: string }, ChatStreamEvent>({
         url: '/api/chat',
         input: params,
         abortSignal,

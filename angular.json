@@ -39,14 +39,23 @@
             "ssr": {
               "entry": "src/server.ts"
             },
-            "externalDependencies": ["@azure/functions", "@azure/functions-core"]
+            "externalDependencies": [
+              "@azure/functions",
+              "@azure/functions-core",
+              "@genkit-ai/ai",
+              "@genkit-ai/core",
+              "@genkit-ai/express",
+              "genkit",
+              "genkitx-azure-openai",
+              "openai"
+            ]
           },
           "configurations": {
             "production": {
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "600kB",
                   "maximumError": "1MB"
                 },
                 {
