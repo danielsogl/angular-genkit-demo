@@ -1,6 +1,7 @@
-// Load `.env` so ANTHROPIC_API_KEY is available before any module that needs it
-// is evaluated. This file MUST be imported before `./ai/...` so the Genkit
-// Anthropic plugin sees the key during its synchronous initialization.
+// Load `.env` so AZURE_OPENAI_API_KEY and the related endpoint/deployment vars
+// are available before any module that needs them is evaluated. This file MUST
+// be imported before `./ai/...` so the Genkit Azure OpenAI plugin sees the
+// credentials during its synchronous initialization.
 //
 // In production the key is supplied by the deployment environment directly, so
 // a missing `.env` file is fine. We also tolerate the file missing during

@@ -61,10 +61,10 @@ export const advisorChatFlow = ai.defineFlow(
         },
       ]);
 
-    // The Anthropic Genkit plugin (v0.2.0) does not yet parse `input_json_delta`
-    // events from streaming tool-use responses, so we drive the model
-    // non-streaming and synthesize our own discriminated stream events from the
-    // assembled response. See https://genkit.dev/docs/js/integrations/anthropic/.
+    // We drive the model non-streaming and synthesize our own discriminated
+    // stream events from the assembled response. Token-level streaming on the
+    // model side is a separate follow-up — keeping this path stable across
+    // the Anthropic → Azure OpenAI provider switch.
     const response = await ai.generate({
       system: systemPrompt,
       messages,

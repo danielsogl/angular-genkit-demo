@@ -38,7 +38,8 @@
             },
             "ssr": {
               "entry": "src/server.ts"
-            }
+            },
+            "externalDependencies": ["@azure/functions", "@azure/functions-core"]
           },
           "configurations": {
             "production": {
